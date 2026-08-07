@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MUBS Teams Meeting Portal</title>
+    <!-- Bootstrap 5 CSS & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .btn-teams { background-color: #464EB8; color: white; border: none; }
+        .btn-teams:hover { background-color: #3b429f; color: white; }
+        .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+                <i class="bi bi-microsoft-teams fs-3 text-primary"></i>
+                <span>MUBS Lecture Manager</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mb-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                
+                <!-- Navigation Tabs -->
+                <ul class="nav nav-pills nav-justified mb-3" id="portalTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-bold" id="create-tab" data-bs-toggle="tab" data-bs-target="#create-pane" type="button" role="tab">
+                            <i class="bi bi-calendar-plus me-1"></i> Schedule New Lecture
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold" id="schedule-tab" data-bs-toggle="tab" data-bs-target="#schedule-pane" type="button" role="tab">
+                            <i class="bi bi-calendar-week me-1"></i> Course Schedule
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="portalTabContent">
+                    
+                    <!-- TAB 1: SCHEDULE FORM -->
+                    <div class="tab-pane fade show active" id="create-pane" role="tabpanel">
+                        <div class="card card-custom p-4">
+                            <h4 class="card-title mb-3 text-secondary">Schedule Teams Meeting</h4>
+                            
+                            <form id="meetingForm">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label font-monospace small">Course ID / Code</label>
+                                        <input type="text" id="courseId" class="form-control" placeholder="e.g. ECO101" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label font-monospace small">Lecturer Email</label>
+                                        <input type="email" id="email" class="form-control" placeholder="lecturer@mubs.ac.ug" required>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label font-monospace small">Lecture Title</label>
+                                        <input type="text" id="subject" class="form-control" placeholder="Macroeconomics Lecture 1" required>
+                                    </div>
+
+                                    <!-- Section 1: Daily Class Times -->
+                                    <div class="col-12"><hr class="my-2"></div>
+                                    <div class="col-12"><h6 class="text-primary mb-0"><i class="bi bi-clock me-1"></i> First Class Session Time</h6></div>
+
+                                    <!-- Row 1: Meeting Date -->
+                                    <div class="col-12">
+                                        <label class="form-label font-monospace small">Meeting Date (First Session)</label>
+                                        <input type="date" id="meetingDate" class="form-control" required>
+                                    </div>
+
+                                    <!-- Row 2: Start and End Time -->
+                                    <div class="col-md-6">
+                                        <label class="form-label font-monospace small">Start Time</label>
+                                        <input type="time" id="startTime" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label font-monospace small">End Time</label>
+                                        <input type="time" id="endTime" class="form-control" required>
+                                    </div>
+
+                                    <!-- Section 2: Semester Recurrence Options -->
+                                    <div class="col-12"><hr class="my-2"></div>
+                                    <div class="col-12"><h6 class="text-primary mb-0"><i class="bi bi-repeat me-1"></i> Semester Recurrence Schedule</h6></div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label font-monospace small">Repeat Schedule</label>
+                                        <select id="recurrenceType" class="form-select" onchange="toggleRecurrenceEnd()">
+                                            <option value="none">Does not repeat (Single Class)</option>
+                                            <option value="weekly">Weekly Semester Schedule</option>
+                                            <option value="daily">Daily</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- End of Semester Field -->
+                                    <div class="col-md-6 d-none" id="recurrenceEndCol">
+                                        <label class="form-label font-monospace small">End of Semester Date (Repeat Until)</label>
+                                        <input type="date" id="recurrenceEndDate" class="form-control">
+                                        <div class="form-text">Last day classes will run for this semester.</div>
+                                    </div>
+
+                                    <!-- Days of Week Checklist (Weekly only) -->
+                                    <div class="col-12 d-none" id="daysOfWeekCol">
+                                        <label class="form-label font-monospace small">Repeat On Days</label>
+                                        <div class="d-flex flex-wrap gap-3 p-2 bg-light rounded border">
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="monday" id="m"><label class="form-check-label" for="m">Mon</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="tuesday" id="tu"><label class="form-check-label" for="tu">Tue</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="wednesday" id="w"><label class="form-check-label" for="w">Wed</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="thursday" id="th"><label class="form-check-label" for="th">Thu</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="friday" id="f"><label class="form-check-label" for="f">Fri</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="saturday" id="sa"><label class="form-check-label" for="sa">Sat</label></div>
+                                            <div class="form-check"><input class="form-check-input day-cb" type="checkbox" value="sunday" id="su"><label class="form-check-label" for="su">Sun</label></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 mt-4">
+                                        <button type="submit" id="submitBtn" class="btn btn-teams w-100 py-2 fw-bold">
+                                            <i class="bi bi-link-45deg me-1"></i> Generate Teams Link
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Success Result Alert -->
+                            <div id="resultBox" class="alert alert-primary mt-4 d-none" role="alert">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="alert-heading mb-0"><i class="bi bi-check-circle-fill me-1"></i> Meeting Created Successfully!</h6>
+                                </div>
+                                <p class="small text-break mb-3 font-monospace bg-white p-2 rounded border" id="meetingLinkText"></p>
+                                <div class="d-flex gap-2">
+                                    <a id="joinMeetingBtn" href="#" target="_blank" class="btn btn-sm btn-teams fw-bold px-3">
+                                        <i class="bi bi-camera-video me-1"></i> Join Meeting
+                                    </a>
+                                    <button class="btn btn-sm btn-dark" id="copyResultBtn" onclick="copyLinkFromBox()">
+                                        <i class="bi bi-clipboard me-1"></i> Copy Link for Moodle
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: COURSE SCHEDULE LIST -->
+                    <div class="tab-pane fade" id="schedule-pane" role="tabpanel">
+                        <div class="card card-custom p-4">
+                            <h4 class="card-title mb-3 text-secondary">Fetch Course Lectures</h4>
+                            
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-5">
+                                    <input type="text" id="searchCourseId" class="form-control" placeholder="Course ID (e.g. ECO101)">
+                                </div>
+                                <div class="col-md-5">
+                                    <input type="email" id="searchEmail" class="form-control" placeholder="Lecturer Email">
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-secondary w-100" onclick="fetchCourseSchedule()">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="scheduleContainer" class="list-group list-group-flush mt-3">
+                                <div class="text-center text-muted py-4">Enter Course ID and Lecturer Email above to view scheduled classes.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/bootstrap.bundle.min.js"></script>
+
+    <script>
+        function toggleRecurrenceEnd() {
+            const recurrenceType = document.getElementById('recurrenceType').value;
+            const recurrenceEndCol = document.getElementById('recurrenceEndCol');
+            const daysOfWeekCol = document.getElementById('daysOfWeekCol');
+
+            if (recurrenceType !== 'none') {
+                recurrenceEndCol.classList.remove('d-none');
+            } else {
+                recurrenceEndCol.classList.add('d-none');
+            }
+
+            if (recurrenceType === 'weekly') {
+                daysOfWeekCol.classList.remove('d-none');
+            } else {
+                daysOfWeekCol.classList.add('d-none');
+            }
+        }
+
+        // CREATE MEETING SUBMIT
+        document.getElementById('meetingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Processing...`;
+
+            const selectedDays = Array.from(document.querySelectorAll('.day-cb:checked')).map(cb => cb.value);
+
+            const meetingDate = document.getElementById('meetingDate').value;
+            const timeStart = document.getElementById('startTime').value;
+            const timeEnd = document.getElementById('endTime').value;
+
+            const payload = {
+                courseId: document.getElementById('courseId').value.trim(),
+                organizerEmail: document.getElementById('email').value.trim(),
+                subject: document.getElementById('subject').value.trim(),
+                startTime: `${meetingDate}T${timeStart}`,
+                endTime: `${meetingDate}T${timeEnd}`,
+                recurrenceType: document.getElementById('recurrenceType').value,
+                recurrenceEndDate: document.getElementById('recurrenceEndDate').value,
+                daysOfWeek: selectedDays
+            };
+
+            try {
+                const response = await fetch('/api/create-meeting', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('meetingLinkText').innerText = data.joinUrl;
+                    document.getElementById('joinMeetingBtn').href = data.joinUrl;
+                    document.getElementById('resultBox').classList.remove('d-none');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Server request failed.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="bi bi-link-45deg me-1"></i> Generate Teams Link`;
+            }
+        });
+
+        // Copy button action for the main result box
+        function copyLinkFromBox() {
+            const link = document.getElementById('meetingLinkText').innerText;
+            const btn = document.getElementById('copyResultBtn');
+            navigator.clipboard.writeText(link).then(() => {
+                btn.innerHTML = `<i class="bi bi-check2 me-1"></i> Copied!`;
+                btn.classList.replace('btn-dark', 'btn-success');
+                setTimeout(() => {
+                    btn.innerHTML = `<i class="bi bi-clipboard me-1"></i> Copy Link for Moodle`;
+                    btn.classList.replace('btn-success', 'btn-dark');
+                }, 2000);
+            });
+        }
+
+        // Generic copy handler for schedule list items
+        function copyTextToClipboard(text, btnElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = btnElement.innerHTML;
+                btnElement.innerHTML = `<i class="bi bi-check2 me-1"></i> Copied`;
+                btnElement.classList.replace('btn-outline-secondary', 'btn-success');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHtml;
+                    btnElement.classList.replace('btn-success', 'btn-outline-secondary');
+                }, 2000);
+            });
+        }
+
+        // FETCH SCHEDULE & DISPLAY LIST
+        async function fetchCourseSchedule() {
+            const courseId = document.getElementById('searchCourseId').value.trim();
+            const organizerEmail = document.getElementById('searchEmail').value.trim();
+            const container = document.getElementById('scheduleContainer');
+
+            if (!courseId || !organizerEmail) {
+                alert('Please enter both Course ID and Lecturer Email.');
+                return;
+            }
+
+            container.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>`;
+
+            try {
+                const res = await fetch(`/api/meetings?courseId=${encodeURIComponent(courseId)}&organizerEmail=${encodeURIComponent(organizerEmail)}`);
+                const data = await res.json();
+
+                if (data.success && data.schedule.length > 0) {
+                    container.innerHTML = data.schedule.map(item => `
+                        <div class="list-group-item d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 py-3">
+                            <div>
+                                <h6 class="mb-1 fw-bold">${item.subject}</h6>
+                                <p class="mb-0 small text-muted">
+                                    <i class="bi bi-clock me-1"></i> ${new Date(item.start).toLocaleString()} - ${new Date(item.end).toLocaleTimeString()}
+                                    ${item.isRecurring ? '<span class="badge bg-info text-dark ms-2">Recurring</span>' : ''}
+                                </p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="${item.joinUrl}" target="_blank" class="btn btn-sm btn-teams fw-bold">
+                                    <i class="bi bi-camera-video me-1"></i> Join
+                                </a>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="copyTextToClipboard('${item.joinUrl}', this)">
+                                    <i class="bi bi-clipboard me-1"></i> Copy Link
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `<div class="text-center text-muted py-4">No scheduled sessions found for Course ID: ${courseId}.</div>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<div class="text-center text-danger py-4">Failed to fetch schedule.</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

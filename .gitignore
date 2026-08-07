@@ -1,0 +1,10 @@
+# Node dependencies
+node_modules/
+
+# Environment files with private API keys/secrets
+.env
+.env.local
+
+# Logs and system files
+*.log
+.DS_Store

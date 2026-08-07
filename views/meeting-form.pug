@@ -1,0 +1,186 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset='UTF-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1.0')
+    title #{isEditMode ? 'Edit' : 'Schedule'} Classroom - #{subject.code}
+    link(rel='stylesheet', href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css')
+  body.bg-light
+    nav.navbar.navbar-expand-lg.navbar-dark.bg-dark.mb-4
+      .container
+        if !isMoodle
+          a.navbar-brand(href=`/subjects/${subject.code}`) ← Back to Course
+        span.navbar-text.small.ms-auto Logged in as: #{user.email}
+
+    .container.pb-5
+      .row.justify-content-center
+        .col-md-8
+          .card.shadow-sm.border-0
+            .card-body.p-4
+              h3.fw-bold.mb-1 #{isEditMode ? 'Edit' : 'Create'} MS Teams Link
+              h6.text-muted.mb-4 Subject: #{subject.code}
+
+              - const m = meeting || {}
+              - const actionUrl = isEditMode ? `/api/subjects/${subject.code}/meetings/${m.id}/edit` : `/api/subjects/${subject.code}/meetings`
+              - const startVal = m.startDateTime ? m.startDateTime.slice(0, 16) : (m.meetingDate && m.startTime ? `${m.meetingDate}T${m.startTime}` : '')
+              - const endVal = m.endDateTime ? m.endDateTime.slice(0, 16) : (m.expiryDate && m.endTime ? `${m.expiryDate}T${m.endTime}` : '')
+
+              form#meetingForm(action=actionUrl, method='POST', novalidate)
+                
+                - const defaultTitle = subject.name ? `${subject.code} - ${subject.name} Virtual Classroom` : `${subject.code} Virtual Classroom`
+
+                .mb-3
+                  label.form-label.fw-semibold Meeting Title / Label
+                  input.form-control(
+                    type='text', 
+                    name='subject', 
+                    value=m.subject || defaultTitle, 
+                    required, 
+                    readonly=isMoodle,
+                    placeholder='e.g., BIT2104 Main Lecture Room'
+                  )
+                  if isMoodle
+                    .form-text.text-muted Title is automatically generated and locked for Moodle sessions.
+                  .invalid-feedback Please enter a title.
+
+                .row
+                  .col-md-6.mb-3
+                    label.form-label.fw-semibold Start Date & Time
+                    input#startDateTime.form-control(type='datetime-local', name='startDateTime', value=startVal, required)
+                    .invalid-feedback Start date and time are required.
+
+                  .col-md-6.mb-3
+                    label.form-label.fw-semibold End Date & Time (Link Expiry)
+                    input#endDateTime.form-control(type='datetime-local', name='endDateTime', value=endVal, required)
+                    #endDateTimeFeedback.invalid-feedback End date & time must be after start date & time.
+                    .form-text Set to session end time for a single meeting, or semester end for a term room.
+
+                hr.my-4
+
+                // --- CO-ORGANIZERS SECTION ---
+                .mb-3
+                  label.form-label.fw-bold.d-block Co-Organizers
+
+                  // 1. Moodle Course Participants (if available)
+                  //- Checkbox rendering loop in meeting-form.pug
+                  if moodleLecturers && moodleLecturers.length > 0
+                    .mb-3
+                      small.text-muted.fw-semibold.d-block.mb-2 Select from Moodle Course Lecturers:
+                      .card.bg-light.p-3.border-0
+                        each lecturer in moodleLecturers
+                          - const isChecked = m.coOrganizers && m.coOrganizers.some(c => {
+                          -   const coEmail = typeof c === 'string' ? c : (c.email || '');
+                          -   return coEmail.toLowerCase() === (lecturer.email || '').toLowerCase();
+                          - })
+                          .form-check.mb-1
+                            input.form-check-input(
+                              type='checkbox', 
+                              name='moodleCoOrganizers', 
+                              value=JSON.stringify({ name: lecturer.name, email: lecturer.email }),
+                              id=`moodle_user_${lecturer.id || lecturer.email}`,
+                              checked=isChecked
+                            )
+                            label.form-check-label(for=`moodle_user_${lecturer.id || lecturer.email}`)
+                              strong #{lecturer.name}
+                              span.text-muted.ms-2 (#{lecturer.email})
+
+                  // 2. Additional Direct Entry (Name + Email)
+                  small.text-muted.fw-semibold.d-block.mb-2 Additional Co-Organizers:
+                  #manualCoOrganizerList.d-flex.flex-column.gap-2.mb-2
+                    if m.coOrganizers && m.coOrganizers.length > 0
+                      each co in m.coOrganizers
+                        // Skip rendering in manual inputs if already represented in Moodle checkboxes
+                        - const isMoodleUser = moodleLecturers && moodleLecturers.some(l => l.email && co.email && l.email.toLowerCase() === co.email.toLowerCase())
+                        if !isMoodleUser
+                          .row.g-2.align-items-center.manual-row
+                            .col-5
+                              input.form-control.form-control-sm(type='text', name='manualCoOrganizerNames[]', value=(co.name || ''), placeholder='Full Name')
+                            .col-6
+                              input.form-control.form-control-sm(type='email', name='manualCoOrganizerEmails[]', value=(co.email || ''), placeholder='Email Address')
+                            .col-1
+                              button.btn.btn-outline-danger.btn-sm.w-100(type='button', onclick='removeCoOrganizerRow(this)') &times;
+
+                  button#addCoOrganizerBtn.btn.btn-outline-secondary.btn-sm(type='button') + Add External Co-Organizer
+
+                .d-flex.justify-content-between.mt-4
+                  a.btn.btn-secondary(href=`/subjects/${subject.code}`) Cancel
+                  button.btn.btn-primary(type='submit') #{isEditMode ? 'Update Room' : 'Generate Teams Link'}
+
+    script.
+      document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('meetingForm');
+        const startInput = document.getElementById('startDateTime');
+        const endInput = document.getElementById('endDateTime');
+        const endFeedback = document.getElementById('endDateTimeFeedback');
+        const addBtn = document.getElementById('addCoOrganizerBtn');
+        const listContainer = document.getElementById('manualCoOrganizerList');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        let isSubmitting = false;
+
+        // Dynamically add new Name + Email input row
+        addBtn.addEventListener('click', () => {
+          const row = document.createElement('div');
+          row.className = 'row g-2 align-items-center manual-row';
+          row.innerHTML = `
+            <div class="col-5">
+              <input type="text" class="form-control form-control-sm" name="manualCoOrganizerNames[]" placeholder="Full Name">
+            </div>
+            <div class="col-6">
+              <input type="email" class="form-control form-control-sm" name="manualCoOrganizerEmails[]" placeholder="Email Address">
+            </div>
+            <div class="col-1">
+              <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeCoOrganizerRow(this)">&times;</button>
+            </div>
+          `;
+          listContainer.appendChild(row);
+        });
+
+        // Lock minimum selectable end time
+        startInput.addEventListener('change', () => {
+          if (startInput.value) {
+            endInput.setAttribute('min', startInput.value);
+            if (!endInput.value || endInput.value < startInput.value) {
+              endInput.value = startInput.value;
+            }
+          }
+        });
+
+        // Form Validation & Double-Submit Guard
+        form.addEventListener('submit', (e) => {
+          // Block repeated submission attempts
+          if (isSubmitting) {
+            e.preventDefault();
+            return;
+          }
+
+          let isValid = true;
+          endInput.classList.remove('is-invalid');
+
+          if (startInput.value && endInput.value && endInput.value <= startInput.value) {
+            endInput.classList.add('is-invalid');
+            endFeedback.textContent = 'End date & time must be later than start date & time.';
+            isValid = false;
+          }
+
+          if (!form.checkValidity() || !isValid) {
+            e.preventDefault();
+            e.stopPropagation();
+          } else {
+            // Lock submission and display loading state
+            isSubmitting = true;
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerText;
+            submitBtn.innerHTML = `
+              <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Processing...
+            `;
+          }
+
+          form.classList.add('was-validated');
+        });
+      });
+
+      function removeCoOrganizerRow(button) {
+        button.closest('.manual-row').remove();
+      }
