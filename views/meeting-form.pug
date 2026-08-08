@@ -36,11 +36,9 @@ html(lang='en')
                     name='subject', 
                     value=m.subject || defaultTitle, 
                     required, 
-                    readonly=isMoodle,
-                    placeholder='e.g., BIT2104 Main Lecture Room'
+                    placeholder='e.g., EC001 Virtual Classroom - Group A'
                   )
-                  if isMoodle
-                    .form-text.text-muted Title is automatically generated and locked for Moodle sessions.
+                  .form-text.text-muted You can customize the title or append stream/group names (e.g., Day, Evening, Group A).
                   .invalid-feedback Please enter a title.
 
                 .row
