@@ -136,6 +136,7 @@ router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
 
         // --- FETCH CANDIDATES FOR CO-ORGANIZERS ---
         let moodleLecturers = [];
+        console.log(req.session.moodleLecturers)
 
         if (req.session.isMoodle && Array.isArray(req.session.moodleLecturers) && req.session.moodleLecturers.length > 0) {
             // Moodle SSO context: Use lecturer list passed in JWT payload from Moodle
