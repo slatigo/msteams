@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 
-const { Subject, Meeting } = require('../models');
+const { Subject, Meeting,User } = require('../models');
 const { createTeamsMeeting, updateTeamsMeeting, deleteTeamsMeeting } = require('../services/msGraphService');
 const { requireAuth, requireTeamsRole } = require('../middleware/authMiddleware');
 const { extractCoOrganizers, fetchMoodleLecturers, parseCoOrganizersField } = require('../helpers/meetingHelpers');
