@@ -19,7 +19,7 @@ router.get('/auth/moodle-sso', async (req, res) => {
         const decoded = jwt.verify(token, sharedSecret, { algorithms: ['HS256'] });
 
         const { user, course, lecturers, settings } = decoded;
-        console.log(user)
+        
 
         // 2. Validate essential payload structure
         if (!user?.email || !course?.code) {

@@ -17,6 +17,7 @@ const requireTeamsRole = (req, res, next) => {
 
     const isMoodle = !!req.session.isMoodle;
     const userRole = req.session.user.role;
+    console.log(userRole)
 
     if (isMoodle) {
         // Strict Moodle rule: Only 'msteam_account' role can schedule
