@@ -1,0 +1,76 @@
+
+if !isMoodle
+  .d-flex.flex-column.flex-shrink-0.p-3.bg-dark.text-white.sidebar-wrapper(style='width: 250px; min-height: 100vh;')
+    // --- BRAND LOGO / TITLE ---
+    a.d-flex.align-items-center.mb-3.mb-md-0.me-md-auto.text-white.text-decoration-none(href='/subjects')
+      i.bi.bi-microsoft-teams.fs-3.me-2.text-primary
+      span.fs-4.fw-bold MUBS Teams
+
+    hr.border-secondary.my-3
+
+    // --- NAVIGATION LINKS ---
+    ul.nav.nav-pills.flex-column.mb-auto
+      // Visible to all authenticated non-Moodle users
+      li.nav-item
+        a.nav-link.text-white(
+          class={ active: activePage === 'subjects' }, 
+          href='/subjects',
+          aria-current=(activePage === 'subjects' ? 'page' : false)
+        )
+          i.bi.bi-journal-bookmark-fill.me-2
+          | Subjects & Hubs
+
+      // Access to All Meetings
+      li.nav-item
+        a.nav-link.text-white(
+          class={ active: activePage === 'meetings' }, 
+          href='/meetings',
+          aria-current=(activePage === 'meetings' ? 'page' : false)
+        )
+          i.bi.bi-camera-video-fill.me-2
+          | All Meetings
+
+      // Visible to Admins and Teachers/Management
+      if user && ['admin', 'teacher'].includes(user.role)
+        li.nav-item
+          a.nav-link.text-white(
+            class={ active: activePage === 'new-subject' }, 
+            href='/subjects/new',
+            aria-current=(activePage === 'new-subject' ? 'page' : false)
+          )
+            i.bi.bi-plus-circle.me-2
+            | Add Subject
+
+      // Visible ONLY to Admins
+      if user && user.role === 'admin'
+        li.nav-item
+          a.nav-link.text-white(
+            class={ active: activePage === 'users' }, 
+            href='/users',
+            aria-current=(activePage === 'users' ? 'page' : false)
+          )
+            i.bi.bi-people-fill.me-2
+            | User Management
+
+    hr.border-secondary.my-3
+
+    // --- USER PROFILE & DROPDOWN ---
+    if user
+      .dropdown
+        a.d-flex.align-items-center.text-white.text-decoration-none.dropdown-toggle.w-100(
+          href='#', 
+          id='dropdownUser', 
+          data-bs-toggle='dropdown', 
+          aria-expanded='false'
+        )
+          .bg-primary.text-white.rounded-circle.d-flex.align-items-center.justify-content-center.me-2.flex-shrink-0(style='width: 32px; height: 32px; font-size: 0.85rem;')
+            | #{user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+          .flex-grow-1.text-truncate
+            .fw-bold.small.text-truncate= user.name || user.email
+            .text-secondary.text-capitalize(style='font-size: 0.75rem;')= user.role
+            
+        ul.dropdown-menu.dropdown-menu-dark.text-small.shadow(aria-labelledby='dropdownUser')
+          li
+            a.dropdown-item.d-flex.align-items-center.gap-2(href='/logout')
+              i.bi.bi-box-arrow-right
+              | Sign out

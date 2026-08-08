@@ -6,7 +6,11 @@ const { requireAuth, requireTeamsRole } = require('../middleware/authMiddleware'
 const { parseCoOrganizersField } = require('../helpers/meetingHelpers');
 const { ALLOWED_MANAGEMENT_ROLES } = require('../config/constants');
 
-// ROOT LANDING
+// ==========================================
+// ROOT & SUBJECT LIST ROUTES
+// ==========================================
+
+// Landing Page Redirect
 router.get('/', (req, res) => {
     if (!req.session.user) {
         return res.redirect('/login');
@@ -14,8 +18,8 @@ router.get('/', (req, res) => {
     res.redirect('/subjects');
 });
 
-// LIST ALL SUBJECTS
-router.get('/subjects', requireAuth, async (req, res) => {
+// List All Subjects
+router.get('/subjects', requireAuth, async (req, res, next) => {
     try {
         const subjects = await Subject.findAll({ order: [['type', 'ASC'], ['code', 'ASC']] });
         res.render('subjects-list', {
@@ -25,41 +29,63 @@ router.get('/subjects', requireAuth, async (req, res) => {
         });
     } catch (err) {
         console.error('Fetch Subjects Error:', err);
-        res.status(500).send('Database Error loading subjects.');
+        next(err); // Handled by global Express error middleware
     }
 });
 
-// NEW SUBJECT FORM
+// Render Form: Create New Subject
 router.get('/subjects/new', requireAuth, requireTeamsRole, (req, res) => {
-    res.render('subject-form', { user: req.session.user });
+    res.render('subject-form', { 
+        user: req.session.user,
+        error: null,
+        formData: {}
+    });
 });
 
-// CREATE SUBJECT ACTION
-router.post('/api/subjects', requireAuth, requireTeamsRole, async (req, res) => {
+// Action: Create Subject API
+router.post('/api/subjects', requireAuth, requireTeamsRole, async (req, res, next) => {
+    const { code, name, type, description } = req.body;
     try {
-        const { code, name, type, description } = req.body;
+        if (!code || !name) {
+            return res.status(400).render('subject-form', {
+                user: req.session.user,
+                error: 'Subject code and title are required.',
+                formData: { code, name, type, description }
+            });
+        }
+
         await Subject.create({
             code: code.trim().toUpperCase(),
-            name,
+            name: name.trim(),
             type: type || 'class',
             description
         });
+
         res.redirect('/subjects');
     } catch (err) {
         console.error('Create Subject Error:', err);
-        res.status(500).send('Failed to create subject. Ensure code is unique.');
+        
+        let userMessage = 'Failed to create subject. Please check your inputs.';
+        if (err.name === 'SequelizeUniqueConstraintError') {
+            userMessage = `Subject Code "${code.toUpperCase()}" already exists.`;
+        }
+
+        res.status(400).render('subject-form', {
+            user: req.session.user,
+            error: userMessage,
+            formData: { code, name, type, description }
+        });
     }
 });
 
-// VIEW SUBJECT MEETINGS (SCHEDULE)
-router.get('/subjects/:subject_code', requireAuth, async (req, res) => {
+router.get('/subjects/:subject_code', requireAuth, async (req, res, next) => {
     try {
         const subjectCode = req.params.subject_code.toUpperCase();
-        const currentUserEmail = req.session.user.email.toLowerCase();
-        
+
+        // Ensure subject exists in DB
         let subject = await Subject.findByPk(subjectCode);
         if (!subject) {
-            subject = await Subject.create({
+            await Subject.create({
                 code: subjectCode,
                 name: req.query.course_name || subjectCode,
                 type: 'class',
@@ -67,39 +93,11 @@ router.get('/subjects/:subject_code', requireAuth, async (req, res) => {
             });
         }
 
-        const rawMeetings = await Meeting.findAll({
-            where: { subjectCode: subjectCode },
-            order: [['meetingDate', 'ASC'], ['startTime', 'ASC']]
-        });
-
-        const meetings = rawMeetings.map(m => {
-            const plain = m.get({ plain: true });
-            const coOrganizers = parseCoOrganizersField(plain.coOrganizers);
-            
-            // --- STRICT CREATOR & ADMIN CHECK ---
-            const isCreator = plain.creatorEmail && plain.creatorEmail.toLowerCase() === currentUserEmail;
-            const isAdmin = req.session.user.role === 'admin';
-
-            return {
-                ...plain,
-                coOrganizers,
-                startDateTimeISO: `${plain.meetingDate}T${plain.startTime || '08:00'}:00`,
-                endDateTimeISO: `${plain.expiryDate || plain.meetingDate}T${plain.endTime || '17:00'}:00`,
-                // Can edit/delete only if creator or admin
-                canEdit: isCreator || isAdmin
-            };
-        });
-
-        res.render('schedule', {
-            user: req.session.user,
-            isMoodle: !!req.session.isMoodle, // Pass iframe state
-            subject: subject.get({ plain: true }),
-            canManage: ALLOWED_MANAGEMENT_ROLES.includes(req.session.user.role),
-            sessions: meetings
-        });
+        // Redirect to unified meetings endpoint with query param
+        res.redirect(`/meetings?subjectCode=${subjectCode}`);
     } catch (err) {
-        console.error('View Subject Error:', err);
-        res.status(500).send('Database Error loading schedule.');
+        console.error('Subject auto-creation error:', err);
+        next(err);
     }
 });
 

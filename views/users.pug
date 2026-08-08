@@ -1,0 +1,263 @@
+extends layout
+
+block content
+  .container.pb-5
+    .d-flex.flex-column.flex-md-row.justify-content-between.align-items-start.align-items-md-center.gap-3.mb-4
+      div
+        h2.fw-bold.mb-0 User Management
+        small.text-muted Manage direct app users, assign roles, and set access permissions.
+      button.btn.btn-primary.w-100.w-md-auto(type='button', data-bs-toggle='modal', data-bs-target='#addUserModal') + Add Direct User
+
+    .card.shadow-sm.border-0
+      .card-body.p-0
+        .table-responsive
+          table.table.table-hover.align-middle.mb-0
+            thead.table-light
+              tr
+                th.ps-4 Name
+                th Email
+                th Role
+                th Auth Type
+                th Status
+                th.text-end.pe-4 Actions
+            tbody
+              if !usersList || usersList.length === 0
+                tr
+                  td.text-center.py-4(colspan='6') No users registered yet.
+              else
+                each u in usersList
+                  tr
+                    td.ps-4.fw-semibold= u.name
+                    td= u.email
+                    td
+                      if u.role === 'admin'
+                        span.badge.bg-danger Administrator
+                      else if u.role === 'instructor'
+                        span.badge.bg-primary Instructor
+                      else
+                        span.badge.bg-secondary Student
+                    td
+                      if u.authSource === 'local'
+                        span.badge.bg-info.text-dark Direct Login
+                      else
+                        span.badge.bg-warning.text-dark Moodle SSO
+                    td
+                      if u.isActive
+                        span.badge.bg-success Active
+                      else
+                        span.badge.bg-outline-danger Inactive
+                    td.text-end.pe-4
+                      .btn-group
+                        button.btn.btn-sm.btn-outline-secondary.btn-edit-user(
+                          type='button',
+                          data-id=u.id,
+                          data-name=u.name,
+                          data-email=u.email,
+                          data-role=u.role,
+                          data-active=u.isActive ? 'true' : 'false',
+                          data-auth=u.authSource
+                        ) ✏️ Edit
+                        if user && u.id !== user.id
+                          button.btn.btn-sm.btn-outline-danger.btn-delete-user(
+                            type='button',
+                            data-id=u.id,
+                            data-name=u.name
+                          ) 🗑️
+
+  // --- ADD USER MODAL ---
+  #addUserModal.modal.fade(tabindex='-1', aria-hidden='true')
+    .modal-dialog.modal-dialog-centered
+      .modal-content
+        form#addUserForm
+          .modal-header
+            h5.modal-title Add Direct App User
+            button.btn-close(type='button', data-bs-dismiss='modal', aria-label='Close')
+          .modal-body
+            .mb-3
+              label.form-label.fw-semibold Name
+              input.form-control(type='text', name='name', required, placeholder='e.g. John Doe')
+            .mb-3
+              label.form-label.fw-semibold Email Address
+              input.form-control(type='email', name='email', required, placeholder='name@mubs.ac.ug')
+            .mb-3
+              label.form-label.fw-semibold Password
+              input.form-control(type='password', name='password', required, minlength='6')
+            .mb-3
+              label.form-label.fw-semibold Role
+              select.form-select(name='role', required)
+                option(value='instructor', selected) Instructor / Lecturer
+                option(value='admin') System Administrator
+                option(value='student') Student
+          .modal-footer
+            button.btn.btn-secondary(type='button', data-bs-dismiss='modal') Cancel
+            button#saveUserBtn.btn.btn-primary(type='submit') Save User
+
+  // --- EDIT USER MODAL ---
+  #editUserModal.modal.fade(tabindex='-1', aria-hidden='true')
+    .modal-dialog.modal-dialog-centered
+      .modal-content
+        form#editUserForm
+          input#editUserId(type='hidden')
+          .modal-header
+            h5.modal-title Edit User
+            button.btn-close(type='button', data-bs-dismiss='modal', aria-label='Close')
+          .modal-body
+            .mb-3
+              label.form-label.fw-semibold Name
+              input#editName.form-control(type='text', required)
+            .mb-3
+              label.form-label.fw-semibold Email (Read Only)
+              input#editEmail.form-control(type='email', disabled)
+            .mb-3
+              label.form-label.fw-semibold Role
+              select#editRole.form-select(required)
+                option(value='instructor') Instructor / Lecturer
+                option(value='admin') System Administrator
+                option(value='student') Student
+            .mb-3
+              label.form-label.fw-semibold Status
+              select#editStatus.form-select
+                option(value='true') Active
+                option(value='false') Disabled / Inactive
+            .mb-3
+              label.form-label.fw-semibold New Password (leave blank to keep current)
+              input#editPassword.form-control(type='password', minlength='6', placeholder='••••••••')
+          .modal-footer
+            button.btn.btn-secondary(type='button', data-bs-dismiss='modal') Cancel
+            button#updateUserBtn.btn.btn-primary(type='submit') Update Changes
+
+  // --- DELETE CONFIRMATION MODAL ---
+  #deleteUserModal.modal.fade(tabindex='-1', aria-hidden='true')
+    .modal-dialog.modal-dialog-centered
+      .modal-content
+        .modal-header
+          h5.modal-title Confirm Account Deletion
+          button.btn-close(type='button', data-bs-dismiss='modal', aria-label='Close')
+        .modal-body
+          p.mb-0 Are you sure you want to delete user <strong id="deleteUserName"></strong>? This operation cannot be undone.
+        .modal-footer
+          button.btn.btn-secondary(type='button', data-bs-dismiss='modal') Cancel
+          button#confirmDeleteUserBtn.btn.btn-danger(type='button') Delete User
+
+  // --- BOOTSTRAP TOAST NOTIFICATION ---
+  .toast-container.position-fixed.bottom-0.end-0.p-3(style='z-index: 1100;')
+    #appToast.toast.align-items-center.text-bg-dark.border-0(role='alert', aria-live='assertive', aria-atomic='true')
+      .d-flex
+        .toast-body#toastMessage Notification...
+        button.btn-close.btn-close-white.me-2.m-auto(type='button', data-bs-dismiss='toast', aria-label='Close')
+
+  script.
+    document.addEventListener('DOMContentLoaded', () => {
+      const toastEl = document.getElementById('appToast');
+      const toastMsg = document.getElementById('toastMessage');
+      const bsToast = toastEl ? new bootstrap.Toast(toastEl, { delay: 3000 }) : null;
+
+      function showNotification(message, isError = false) {
+        if (!bsToast) return;
+        toastEl.classList.remove('text-bg-dark', 'text-bg-danger', 'text-bg-success');
+        toastEl.classList.add(isError ? 'text-bg-danger' : 'text-bg-dark');
+        toastMsg.textContent = message;
+        bsToast.show();
+      }
+
+      const addUserModal = new bootstrap.Modal(document.getElementById('addUserModal'));
+      const editUserModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+      const deleteUserModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+
+      let selectedUserId = null;
+
+      // CREATE USER
+      document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const payload = Object.fromEntries(formData.entries());
+
+        try {
+          const res = await fetch('/users/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.success) {
+            addUserModal.hide();
+            showNotification('User created successfully!');
+            window.location.reload();
+          } else {
+            showNotification(data.error || 'Failed to create user', true);
+          }
+        } catch (err) {
+          showNotification('Server error processing request', true);
+        }
+      });
+
+      // EDIT USER MODAL TRIGGER
+      document.querySelectorAll('.btn-edit-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('editUserId').value = btn.dataset.id;
+          document.getElementById('editName').value = btn.dataset.name;
+          document.getElementById('editEmail').value = btn.dataset.email;
+          document.getElementById('editRole').value = btn.dataset.role;
+          document.getElementById('editStatus').value = btn.dataset.active;
+          document.getElementById('editPassword').value = '';
+          editUserModal.show();
+        });
+      });
+
+      // UPDATE USER
+      document.getElementById('editUserForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = document.getElementById('editUserId').value;
+        const payload = {
+          name: document.getElementById('editName').value,
+          role: document.getElementById('editRole').value,
+          isActive: document.getElementById('editStatus').value === 'true',
+          password: document.getElementById('editPassword').value
+        };
+
+        try {
+          const res = await fetch('/users/api/users/' + userId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (data.success) {
+            editUserModal.hide();
+            showNotification('User updated successfully!');
+            window.location.reload();
+          } else {
+            showNotification(data.error || 'Failed to update user', true);
+          }
+        } catch (err) {
+          showNotification('Server error updating user', true);
+        }
+      });
+
+      // DELETE USER TRIGGER
+      document.querySelectorAll('.btn-delete-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedUserId = btn.dataset.id;
+          document.getElementById('deleteUserName').textContent = btn.dataset.name;
+          deleteUserModal.show();
+        });
+      });
+
+      // CONFIRM DELETE
+      document.getElementById('confirmDeleteUserBtn').addEventListener('click', async () => {
+        if (!selectedUserId) return;
+        try {
+          const res = await fetch('/users/api/users/' + selectedUserId, { method: 'DELETE' });
+          const data = await res.json();
+          if (data.success) {
+            deleteUserModal.hide();
+            showNotification('User deleted.');
+            window.location.reload();
+          } else {
+            showNotification(data.error || 'Failed to delete user', true);
+          }
+        } catch (err) {
+          showNotification('Server error deleting user', true);
+        }
+      });
+    });

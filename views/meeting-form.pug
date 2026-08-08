@@ -1,140 +1,197 @@
-doctype html
-html(lang='en')
-  head
-    meta(charset='UTF-8')
-    meta(name='viewport', content='width=device-width, initial-scale=1.0')
-    title #{isEditMode ? 'Edit' : 'Schedule'} Classroom - #{subject.code}
-    link(rel='stylesheet', href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css')
-  body.bg-light
-    nav.navbar.navbar-expand-lg.navbar-dark.bg-dark.mb-4
-      .container
-        if !isMoodle
-          a.navbar-brand(href=`/subjects/${subject.code}`) ← Back to Course
-        span.navbar-text.small.ms-auto Logged in as: #{user.email}
+extends layout
 
-    .container.pb-5
-      .row.justify-content-center
-        .col-md-8
-          .card.shadow-sm.border-0
-            .card-body.p-4
-              h3.fw-bold.mb-1 #{isEditMode ? 'Edit' : 'Create'} MS Teams Link
-              h6.text-muted.mb-4 Subject: #{subject.code}
+block content
+  .container.pb-5
+    .row.justify-content-center
+      .col-md-8
+        .card.shadow-sm.border-0
+          .card-body.p-4
+            h3.fw-bold.mb-1 #{isEditMode ? 'Edit' : 'Create'} MS Teams Link
+            
+            if subject && subject.code
+              h6.text-muted.mb-4 Subject: #{subject.code} #{subject.name ? `- ${subject.name}` : ''}
+            else
+              h6.text-muted.mb-4 General / Standalone Meeting
 
-              - const m = meeting || {}
-              - const actionUrl = isEditMode ? `/api/subjects/${subject.code}/meetings/${m.id}/edit` : `/api/subjects/${subject.code}/meetings`
-              - const startVal = m.startDateTime ? m.startDateTime.slice(0, 16) : (m.meetingDate && m.startTime ? `${m.meetingDate}T${m.startTime}` : '')
-              - const endVal = m.endDateTime ? m.endDateTime.slice(0, 16) : (m.expiryDate && m.endTime ? `${m.expiryDate}T${m.endTime}` : '')
+            - const m = meeting || {}
+            - const hasSubject = subject && subject.code
+            - const actionUrl = isEditMode ? (hasSubject ? `/api/subjects/${subject.code}/meetings/${m.id}/edit` : `/api/meetings/${m.id}/edit`) : (hasSubject ? `/api/subjects/${subject.code}/meetings` : `/api/meetings`)
 
-              form#meetingForm(action=actionUrl, method='POST', novalidate)
-                
-                - const defaultTitle = subject.name ? `${subject.code} - ${subject.name} Virtual Classroom` : `${subject.code} Virtual Classroom`
+            - 
+              const formatLocalISO = (dateInput) => {
+                if (!dateInput) return '';
+                const d = new Date(dateInput);
+                if (isNaN(d.getTime())) return '';
+                const pad = (n) => n.toString().padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              };
 
+            - const nowIso = formatLocalISO(new Date())
+            - const defaultEndIso = formatLocalISO(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000))
+            - const formattedFixedEnd = fixedEndDate ? (fixedEndDate.includes('T') ? formatLocalISO(fixedEndDate) : `${fixedEndDate}T23:59`) : null
+
+            - const startVal = formatLocalISO(m.startDateTime) || (m.meetingDate && m.startTime ? `${m.meetingDate}T${m.startTime}` : (isMoodle ? nowIso : ''))
+            - const endVal = formatLocalISO(m.endDateTime) || (m.expiryDate && m.endTime ? `${m.expiryDate}T${m.endTime}` : (formattedFixedEnd || (isMoodle ? defaultEndIso : '')))
+
+            if errorMessage
+              .alert.alert-danger.alert-dismissible.fade.show.mb-4(role='alert')
+                strong Error: 
+                span #{errorMessage}
+                button.btn-close(type='button', data-bs-dismiss='alert', aria-label='Close')
+
+            form#meetingForm(action=actionUrl, method='POST', novalidate)
+
+              // Optional Subject Selector (When not pre-bound to a subject)
+              if !hasSubject && subjects && subjects.length
                 .mb-3
-                  label.form-label.fw-semibold Meeting Title / Label
-                  input.form-control(
-                    type='text', 
-                    name='subject', 
-                    value=m.subject || defaultTitle, 
-                    required, 
-                    placeholder='e.g., EC001 Virtual Classroom - Group A'
-                  )
-                  .form-text.text-muted You can customize the title or append stream/group names (e.g., Day, Evening, Group A).
-                  .invalid-feedback Please enter a title.
+                  label.form-label.fw-semibold(for='subjectCodeSelect') Associated Subject / Course (Optional)
+                  select#subjectCodeSelect.form-select(name='subjectCode')
+                    option(value='' selected=!(m.subjectCode)) -- None (General / Standalone Meeting) --
+                    each s in subjects
+                      option(
+                        value=s.code, 
+                        selected=(m.subjectCode === s.code)
+                      )= `${s.code} - ${s.name}`
+                  .form-text.text-muted Select a subject to group this meeting, or leave empty for general use.
 
+              - const defaultTitle = (subject && subject.name) ? `${subject.code} - ${subject.name} Virtual Classroom` : (hasSubject ? `${subject.code} Virtual Classroom` : 'General Virtual Classroom')
+
+              .mb-3
+                label.form-label.fw-semibold(for='meetingSubject') Meeting Title / Label
+                input#meetingSubject.form-control(
+                  type='text', 
+                  name='subject', 
+                  value=m.subject || defaultTitle, 
+                  required, 
+                  placeholder='e.g., General Consultation / Group A Session'
+                )
+                .form-text.text-muted Customize the title or add stream/group names (e.g., Day, Evening, Group A).
+                .invalid-feedback Please enter a title.
+
+              .mb-3
+                label.form-label.fw-semibold(for='meetingDescription') Description / Agenda
+                textarea#meetingDescription.form-control(
+                  name='description', 
+                  rows='3', 
+                  placeholder='Add meeting instructions, topics to cover, or notes for participants...'
+                )= m.description || ''
+                .form-text.text-muted Optional details or instructions for participants joining this room.
+
+              if isMoodle
                 .row
                   .col-md-6.mb-3
-                    label.form-label.fw-semibold Start Date & Time
+                    label.form-label.fw-semibold(for='startDateTimeLocked') Start Date & Time
+                    input#startDateTimeLocked.form-control.bg-light(type='datetime-local', value=startVal, disabled)
+                    input(type='hidden', name='startDateTime', value=startVal)
+                    .form-text.text-muted Locked preset for Moodle Virtual Classroom.
+
+                  .col-md-6.mb-3
+                    label.form-label.fw-semibold(for='endDateTimeLocked') End Date & Time (Link Expiry)
+                    input#endDateTimeLocked.form-control.bg-light(type='datetime-local', value=endVal, disabled)
+                    input(type='hidden', name='endDateTime', value=endVal)
+                    .form-text.text-muted #{fixedEndDate ? `Preset to semester end date (${fixedEndDate}).` : 'Preset for full academic term availability.'}
+              else
+                .row
+                  .col-md-6.mb-3
+                    label.form-label.fw-semibold(for='startDateTime') Start Date & Time
                     input#startDateTime.form-control(type='datetime-local', name='startDateTime', value=startVal, required)
                     .invalid-feedback Start date and time are required.
 
                   .col-md-6.mb-3
-                    label.form-label.fw-semibold End Date & Time (Link Expiry)
+                    label.form-label.fw-semibold(for='endDateTime') End Date & Time (Link Expiry)
                     input#endDateTime.form-control(type='datetime-local', name='endDateTime', value=endVal, required)
                     #endDateTimeFeedback.invalid-feedback End date & time must be after start date & time.
                     .form-text Set to session end time for a single meeting, or semester end for a term room.
 
-                hr.my-4
+              hr.my-4
 
-                // --- CO-ORGANIZERS SECTION ---
-                .mb-3
-                  label.form-label.fw-bold.d-block Co-Organizers
+              .mb-3
+                label.form-label.fw-bold.d-block Co-Organizers
 
-                  // 1. Moodle Course Participants (if available)
-                  //- Checkbox rendering loop in meeting-form.pug
-                  if moodleLecturers && moodleLecturers.length > 0
-                    .mb-3
-                      small.text-muted.fw-semibold.d-block.mb-2 Select from Moodle Course Lecturers:
-                      .card.bg-light.p-3.border-0
-                        each lecturer in moodleLecturers
-                          - const isChecked = m.coOrganizers && m.coOrganizers.some(c => {
-                          -   const coEmail = typeof c === 'string' ? c : (c.email || '');
-                          -   return coEmail.toLowerCase() === (lecturer.email || '').toLowerCase();
-                          - })
-                          .form-check.mb-1
-                            input.form-check-input(
-                              type='checkbox', 
-                              name='moodleCoOrganizers', 
-                              value=JSON.stringify({ name: lecturer.name, email: lecturer.email }),
-                              id=`moodle_user_${lecturer.id || lecturer.email}`,
-                              checked=isChecked
-                            )
-                            label.form-check-label(for=`moodle_user_${lecturer.id || lecturer.email}`)
-                              strong #{lecturer.name}
-                              span.text-muted.ms-2 (#{lecturer.email})
+                if moodleLecturers && moodleLecturers.length > 0
+                  .mb-3
+                    small.text-muted.fw-semibold.d-block.mb-2 Select from Course Lecturers:
+                    .card.bg-light.p-3.border-0
+                      each lecturer in moodleLecturers
+                        - const isChecked = m.coOrganizers && m.coOrganizers.some(c => {
+                        -   const coEmail = typeof c === 'string' ? c : (c.email || '');
+                        -   return coEmail.toLowerCase() === (lecturer.email || '').toLowerCase();
+                        - })
+                        .form-check.mb-1
+                          input.form-check-input(
+                            type='checkbox', 
+                            name='moodleCoOrganizers', 
+                            value=JSON.stringify({ name: lecturer.name, email: lecturer.email }),
+                            id=`moodle_user_${lecturer.id || lecturer.email}`,
+                            checked=isChecked
+                          )
+                          label.form-check-label(for=`moodle_user_${lecturer.id || lecturer.email}`)
+                            strong #{lecturer.name}
+                            span.text-muted.ms-2 (#{lecturer.email})
 
-                  // 2. Additional Direct Entry (Name + Email)
-                  small.text-muted.fw-semibold.d-block.mb-2 Additional Co-Organizers:
-                  #manualCoOrganizerList.d-flex.flex-column.gap-2.mb-2
-                    if m.coOrganizers && m.coOrganizers.length > 0
-                      each co in m.coOrganizers
-                        // Skip rendering in manual inputs if already represented in Moodle checkboxes
-                        - const isMoodleUser = moodleLecturers && moodleLecturers.some(l => l.email && co.email && l.email.toLowerCase() === co.email.toLowerCase())
-                        if !isMoodleUser
-                          .row.g-2.align-items-center.manual-row
-                            .col-5
-                              input.form-control.form-control-sm(type='text', name='manualCoOrganizerNames[]', value=(co.name || ''), placeholder='Full Name')
-                            .col-6
-                              input.form-control.form-control-sm(type='email', name='manualCoOrganizerEmails[]', value=(co.email || ''), placeholder='Email Address')
-                            .col-1
-                              button.btn.btn-outline-danger.btn-sm.w-100(type='button', onclick='removeCoOrganizerRow(this)') &times;
+                small.text-muted.fw-semibold.d-block.mb-2 Additional Co-Organizers:
+                #manualCoOrganizerList.d-flex.flex-column.gap-2.mb-2
+                  if m.coOrganizers && m.coOrganizers.length > 0
+                    each co in m.coOrganizers
+                      - const isMoodleUser = moodleLecturers && moodleLecturers.some(l => l.email && co.email && l.email.toLowerCase() === co.email.toLowerCase())
+                      if !isMoodleUser
+                        .row.g-2.align-items-center.manual-row
+                          .col-5
+                            input.form-control.form-control-sm(type='text', name='manualCoOrganizerNames[]', value=(co.name || ''), placeholder='Full Name', aria-label='Co-Organizer Full Name')
+                          .col-6
+                            input.form-control.form-control-sm(type='email', name='manualCoOrganizerEmails[]', value=(co.email || ''), placeholder='Email Address', aria-label='Co-Organizer Email Address')
+                          .col-1
+                            button.btn.btn-outline-danger.btn-sm.w-100.remove-row-btn(type='button', aria-label='Remove co-organizer') &times;
 
-                  button#addCoOrganizerBtn.btn.btn-outline-secondary.btn-sm(type='button') + Add External Co-Organizer
+                button#addCoOrganizerBtn.btn.btn-outline-secondary.btn-sm(type='button') + Add External Co-Organizer
 
-                .d-flex.justify-content-between.mt-4
+              .d-flex.justify-content-between.align-items-center.mt-4
+                if !isMoodle && hasSubject
                   a.btn.btn-secondary(href=`/subjects/${subject.code}`) Cancel
-                  button.btn.btn-primary(type='submit') #{isEditMode ? 'Update Room' : 'Generate Teams Link'}
+                else if !isMoodle
+                  a.btn.btn-secondary(href='/meetings') Cancel
+                else
+                  span
+                button.btn.btn-primary(type='submit') #{isEditMode ? 'Update Room' : 'Generate Teams Link'}
 
-    script.
-      document.addEventListener('DOMContentLoaded', () => {
-        const form = document.getElementById('meetingForm');
-        const startInput = document.getElementById('startDateTime');
-        const endInput = document.getElementById('endDateTime');
-        const endFeedback = document.getElementById('endDateTimeFeedback');
-        const addBtn = document.getElementById('addCoOrganizerBtn');
-        const listContainer = document.getElementById('manualCoOrganizerList');
-        const submitBtn = form.querySelector('button[type="submit"]');
+  script.
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('meetingForm');
+      const startInput = document.getElementById('startDateTime');
+      const endInput = document.getElementById('endDateTime');
+      const endFeedback = document.getElementById('endDateTimeFeedback');
+      const addBtn = document.getElementById('addCoOrganizerBtn');
+      const listContainer = document.getElementById('manualCoOrganizerList');
+      const submitBtn = form.querySelector('button[type="submit"]');
 
-        let isSubmitting = false;
+      let isSubmitting = false;
 
-        // Dynamically add new Name + Email input row
+      if (addBtn && listContainer) {
         addBtn.addEventListener('click', () => {
           const row = document.createElement('div');
           row.className = 'row g-2 align-items-center manual-row';
           row.innerHTML = `
             <div class="col-5">
-              <input type="text" class="form-control form-control-sm" name="manualCoOrganizerNames[]" placeholder="Full Name">
+              <input type="text" class="form-control form-control-sm" name="manualCoOrganizerNames[]" placeholder="Full Name" aria-label="Co-Organizer Full Name">
             </div>
             <div class="col-6">
-              <input type="email" class="form-control form-control-sm" name="manualCoOrganizerEmails[]" placeholder="Email Address">
+              <input type="email" class="form-control form-control-sm" name="manualCoOrganizerEmails[]" placeholder="Email Address" aria-label="Co-Organizer Email Address">
             </div>
             <div class="col-1">
-              <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="removeCoOrganizerRow(this)">&times;</button>
+              <button type="button" class="btn btn-outline-danger btn-sm w-100 remove-row-btn" aria-label="Remove co-organizer">&times;</button>
             </div>
           `;
           listContainer.appendChild(row);
         });
 
-        // Lock minimum selectable end time
+        listContainer.addEventListener('click', (e) => {
+          if (e.target && e.target.classList.contains('remove-row-btn')) {
+            e.target.closest('.manual-row').remove();
+          }
+        });
+      }
+
+      if (startInput && endInput) {
         startInput.addEventListener('change', () => {
           if (startInput.value) {
             endInput.setAttribute('min', startInput.value);
@@ -143,32 +200,34 @@ html(lang='en')
             }
           }
         });
+      }
 
-        // Form Validation & Double-Submit Guard
+      if (form) {
         form.addEventListener('submit', (e) => {
-          // Block repeated submission attempts
           if (isSubmitting) {
             e.preventDefault();
             return;
           }
 
           let isValid = true;
-          endInput.classList.remove('is-invalid');
-
-          if (startInput.value && endInput.value && endInput.value <= startInput.value) {
-            endInput.classList.add('is-invalid');
-            endFeedback.textContent = 'End date & time must be later than start date & time.';
-            isValid = false;
+          
+          if (startInput && endInput) {
+            endInput.classList.remove('is-invalid');
+            if (startInput.value && endInput.value && endInput.value <= startInput.value) {
+              endInput.classList.add('is-invalid');
+              if (endFeedback) {
+                endFeedback.textContent = 'End date & time must be later than start date & time.';
+              }
+              isValid = false;
+            }
           }
 
           if (!form.checkValidity() || !isValid) {
             e.preventDefault();
             e.stopPropagation();
           } else {
-            // Lock submission and display loading state
             isSubmitting = true;
             submitBtn.disabled = true;
-            const originalText = submitBtn.innerText;
             submitBtn.innerHTML = `
               <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
               Processing...
@@ -177,8 +236,5 @@ html(lang='en')
 
           form.classList.add('was-validated');
         });
-      });
-
-      function removeCoOrganizerRow(button) {
-        button.closest('.manual-row').remove();
       }
+    });

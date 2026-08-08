@@ -11,7 +11,7 @@ function extractCoOrganizers(body, organizerEmail = '') {
         const moodleItems = Array.isArray(body.moodleCoOrganizers) 
             ? body.moodleCoOrganizers 
             : [body.moodleCoOrganizers];
-
+     
         moodleItems.forEach(itemStr => {
             try {
                 const parsed = typeof itemStr === 'string' ? JSON.parse(itemStr) : itemStr;
@@ -65,6 +65,7 @@ async function fetchMoodleLecturers(subjectCode, organizerEmail = '') {
 
         // Filter out the organizer so they cannot add themselves as a co-organizer
         const normalizedOrganizer = organizerEmail ? organizerEmail.trim().toLowerCase() : '';
+
         return lecturers.filter(lecturer => 
             lecturer.email && lecturer.email.trim().toLowerCase() !== normalizedOrganizer
         );
@@ -78,6 +79,7 @@ async function fetchMoodleLecturers(subjectCode, organizerEmail = '') {
  * Safely parse and normalize JSON coOrganizers field from DB model
  */
 function parseCoOrganizersField(rawCoOrganizers) {
+
     if (!rawCoOrganizers) return [];
     let items = [];
 

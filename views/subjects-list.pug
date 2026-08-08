@@ -1,32 +1,23 @@
-doctype html
-html
-  head
-    title MUBS MS Teams - Subjects & Hubs
-    link(rel='stylesheet', href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css')
-  body.bg-light
-    nav.navbar.navbar-expand-lg.navbar-dark.bg-dark.mb-4
-      .container
-        a.navbar-brand.fw-bold(href='/subjects') MUBS Teams Portal
-        .d-flex.align-items-center
-          span.navbar-text.me-3 #{user.email} (#{user.role})
-          a.btn.btn-outline-light.btn-sm(href='/logout') Logout
-    .container
-      .d-flex.justify-content-between.align-items-center.mb-4
-        h2.fw-bold Subjects & Meeting Hubs
-        if canManage
-          a.btn.btn-success(href='/subjects/new') + Create New Subject / Hub
-      
-      if subjects.length === 0
-        .alert.alert-info No subjects or meeting hubs available yet.
-      else
-        .row
-          each sub in subjects
-            .col-md-6.col-lg-4.mb-4
-              .card.h-100.shadow-sm.border-0
-                .card-body.d-flex.flex-column
-                  .d-flex.justify-content-between.align-items-start.mb-2
-                    h5.card-title.fw-bold.mb-0= sub.name
-                    span.badge(class=sub.type === 'class' ? 'bg-primary' : 'bg-secondary')= sub.type.toUpperCase()
-                  h6.card-subtitle.text-muted.mb-3 Code: #{sub.code}
-                  p.card-text.text-secondary.flex-grow-1= sub.description || 'No description provided.'
-                  a.btn.btn-outline-primary.mt-3.w-100(href=`/subjects/${sub.code}`) View Schedule
+extends layout
+
+block content
+  .container.pb-5
+    .d-flex.flex-column.flex-md-row.justify-content-between.align-items-start.align-items-md-center.gap-3.mb-4
+      h2.fw-bold.mb-0 Subjects & Meeting Hubs
+      if canManage
+        a.btn.btn-success.w-100.w-md-auto(href='/subjects/new') + Create New Subject / Hub
+
+    if subjects.length === 0
+      .alert.alert-info No subjects or meeting hubs available yet.
+    else
+      .row
+        each sub in subjects
+          .col-md-6.col-lg-4.mb-4
+            .card.h-100.shadow-sm.border-0
+              .card-body.d-flex.flex-column.p-4
+                .d-flex.justify-content-between.align-items-start.mb-2
+                  h5.card-title.fw-bold.mb-0= sub.name
+                  span.badge(class=sub.type === 'class' ? 'bg-primary' : 'bg-secondary')= sub.type ? sub.type.toUpperCase() : 'HUB'
+                h6.card-subtitle.text-muted.mb-3 Code: #{sub.code}
+                p.card-text.text-secondary.flex-grow-1= sub.description || 'No description provided.'
+                a.btn.btn-outline-primary.mt-3.w-100.fw-semibold(href=`/subjects/${sub.code}`) View Schedule

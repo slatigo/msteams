@@ -1,13 +1,6 @@
 const ALLOWED_MANAGEMENT_ROLES = [
     'admin',
-    'ms_teams_account',
-    'editingteacher',
-    'teacher',
-    'lectuer_less_rights',
-    'manager',
-    'asst_manager',
-    'assistant_manager_more',
-    'coursecreator'
+    'ms_teams_account'
 ];
 
 module.exports = {

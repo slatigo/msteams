@@ -11,7 +11,7 @@ const { allowMoodleIframe } = require('./middleware/securityMiddleware');
 const authRoutes = require('./routes/authRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
-
+const userRoutes = require('./routes/userRoutes');
 const app = express();
 
 // View Engine & Static Setup
@@ -45,7 +45,8 @@ app.use(allowMoodleIframe);
 app.use(authRoutes);
 app.use(subjectRoutes);
 app.use(meetingRoutes);
-
+// Mount user management under /users
+app.use('/users', userRoutes);
 // Catch-all Handler
 app.use((req, res) => {
     res.redirect(req.session.user ? '/subjects' : '/login');

@@ -10,6 +10,10 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING, 
             allowNull: false 
         },
+        description: { 
+            type: DataTypes.TEXT, 
+            allowNull: true 
+        },
         meetingDate: { 
             type: DataTypes.DATEONLY, 
             allowNull: false 
