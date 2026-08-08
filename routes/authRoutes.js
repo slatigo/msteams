@@ -5,7 +5,6 @@ const jwt = require('jsonwebtoken');
 
 const { User, Subject } = require('../models');
 
-// MOODLE SSO HANDLER
 router.get('/auth/moodle-sso', async (req, res) => {
     const { token } = req.query;
 
@@ -14,21 +13,17 @@ router.get('/auth/moodle-sso', async (req, res) => {
     }
 
     try {
-        const sharedSecret = process.env.MOODLE_SHARED_SECRET 
-        // 1. Verify token with explicit algorithm check (Prevents JWT None Attack)
+        const sharedSecret = process.env.MOODLE_SHARED_SECRET;
         const decoded = jwt.verify(token, sharedSecret, { algorithms: ['HS256'] });
 
         const { user, course, lecturers, settings } = decoded;
-        
 
-        // 2. Validate essential payload structure
         if (!user?.email || !course?.code) {
             return res.status(400).send('Malformed payload: User email or Course code missing.');
         }
 
         const courseCode = course.code.trim().toUpperCase();
 
-        // 3. Set Session Attributes
         req.session.isMoodle = true;
         req.session.user = {
             email: user.email.toLowerCase(),
@@ -36,16 +31,10 @@ router.get('/auth/moodle-sso', async (req, res) => {
             role: user.role || 'teacher'
         };
 
-        req.session.moodleLecturers = req.session.moodleLecturers || {};
-        req.session.moodleLecturers[courseCode] = Array.isArray(lecturers) ? lecturers : [];
-       
-        req.session.moodleSettings = req.session.moodleSettings || {};
-        req.session.moodleSettings[courseCode] = settings || {};
-
+        // Store lecturers directly as an array for the active session
+        req.session.moodleLecturers = Array.isArray(lecturers) ? lecturers : [];
         req.session.fixedEndDate = settings?.fixed_end_date || null;
 
-
-        // 4. Ensure subject existing in DB
         await Subject.findOrCreate({
             where: { code: courseCode },
             defaults: {
@@ -56,7 +45,6 @@ router.get('/auth/moodle-sso', async (req, res) => {
             }
         });
 
-        // 5. Persist Session & Redirect
         req.session.save((err) => {
             if (err) {
                 console.error('Session save error during Moodle SSO:', err);

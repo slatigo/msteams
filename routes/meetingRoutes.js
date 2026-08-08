@@ -127,22 +127,40 @@ router.get('/meetings', requireAuth, async (req, res, next) => {
 // ==========================================
 
 // GET /meetings/new — Unified New Meeting Form
-// GET /meetings/new — Unified New Meeting Form
 router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
     try {
         const { subjectCode } = req.query;
-        const currentUserEmail = req.session.user.email.toLowerCase();
+        const currentUserEmail = (req.session.user && req.session.user.email) 
+            ? req.session.user.email.toLowerCase() 
+            : '';
+        
         const subjectsList = await Subject.findAll({ order: [['name', 'ASC']] });
         const fixedEndDate = req.session.fixedEndDate || null;
 
-        // --- CO-ORGANIZERS: STRICTLY FROM MOODLE SESSION ---
-        let moodleLecturers = [];
-
+        // --- FETCH CO-ORGANIZERS DIRECTLY FROM SESSION (NO COURSE CODES NEEDED) ---
+        let rawLecturers = [];
         if (Array.isArray(req.session.moodleLecturers)) {
-            moodleLecturers = req.session.moodleLecturers.filter(
-                l => l.email && l.email.toLowerCase() !== currentUserEmail
-            );
+            rawLecturers = req.session.moodleLecturers;
+        } else if (req.session.moodleLecturers && typeof req.session.moodleLecturers === 'object') {
+            rawLecturers = Object.values(req.session.moodleLecturers).flat();
         }
+
+        // Clean properties, remove self, and deduplicate
+        const seenEmails = new Set();
+        const moodleLecturers = rawLecturers
+            .map(l => ({
+                id: l.id || l.userid || l.email,
+                name: l.name || l.fullname || `${l.firstname || ''} ${l.lastname || ''}`.trim() || l.email,
+                email: l.email || l.mail || ''
+            }))
+            .filter(l => {
+                if (!l.email) return false;
+                const emailLower = l.email.toLowerCase();
+                if (emailLower === currentUserEmail) return false;
+                if (seenEmails.has(emailLower)) return false;
+                seenEmails.add(emailLower);
+                return true;
+            });
 
         let selectedSubject = null;
         if (subjectCode) {
