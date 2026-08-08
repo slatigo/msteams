@@ -17,11 +17,10 @@ const requireTeamsRole = (req, res, next) => {
 
     const isMoodle = !!req.session.isMoodle;
     const userRole = req.session.user.role;
-    console.log(userRole)
-
+   
     if (isMoodle) {
         // Strict Moodle rule: Only 'msteam_account' role can schedule
-        if (userRole !== 'msteam_account') {
+        if (userRole !== 'ms_teams_account') {
             if (req.xhr || req.headers.accept?.includes('json')) {
                 return res.status(403).json({ 
                     success: false, 
