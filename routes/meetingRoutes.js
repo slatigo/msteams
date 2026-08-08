@@ -127,6 +127,7 @@ router.get('/meetings', requireAuth, async (req, res, next) => {
 // ==========================================
 
 // GET /meetings/new — Unified New Meeting Form
+// GET /meetings/new — Unified New Meeting Form
 router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
     try {
         const { subjectCode } = req.query;
@@ -134,25 +135,13 @@ router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
         const subjectsList = await Subject.findAll({ order: [['name', 'ASC']] });
         const fixedEndDate = req.session.fixedEndDate || null;
 
-        // --- FETCH CANDIDATES FOR CO-ORGANIZERS ---
+        // --- CO-ORGANIZERS: STRICTLY FROM MOODLE SESSION ---
         let moodleLecturers = [];
-        console.log(req.session.moodleLecturers)
 
-        if (req.session.isMoodle && Array.isArray(req.session.moodleLecturers) && req.session.moodleLecturers.length > 0) {
-            // Moodle SSO context: Use lecturer list passed in JWT payload from Moodle
+        if (Array.isArray(req.session.moodleLecturers)) {
             moodleLecturers = req.session.moodleLecturers.filter(
                 l => l.email && l.email.toLowerCase() !== currentUserEmail
             );
-        } else {
-            // Standalone Direct Login context: Query active accounts from DB
-            const dbUsers = await User.findAll({
-                attributes: ['id', 'name', 'email', 'role'],
-                order: [['name', 'ASC']]
-            });
-
-            moodleLecturers = dbUsers
-                .map(u => u.get({ plain: true }))
-                .filter(u => u.email && u.email.toLowerCase() !== currentUserEmail);
         }
 
         let selectedSubject = null;
@@ -170,7 +159,7 @@ router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
             isEditMode: false,
             subject: selectedSubject,
             subjects: subjectsList.map(s => s.get({ plain: true })),
-            moodleLecturers, // List of co-organizer options rendered in the form UI
+            moodleLecturers,
             fixedEndDate,
             meeting: null,
             errorMessage: null
