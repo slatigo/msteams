@@ -130,9 +130,29 @@ router.get('/meetings', requireAuth, async (req, res, next) => {
 router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
     try {
         const { subjectCode } = req.query;
+        const currentUserEmail = req.session.user.email.toLowerCase();
         const subjectsList = await Subject.findAll({ order: [['name', 'ASC']] });
         const fixedEndDate = req.session.fixedEndDate || null;
-        const moodleLecturers = req.session.moodleLecturers || [];
+
+        // --- FETCH CANDIDATES FOR CO-ORGANIZERS ---
+        let moodleLecturers = [];
+
+        if (req.session.isMoodle && Array.isArray(req.session.moodleLecturers) && req.session.moodleLecturers.length > 0) {
+            // Moodle SSO context: Use lecturer list passed in JWT payload from Moodle
+            moodleLecturers = req.session.moodleLecturers.filter(
+                l => l.email && l.email.toLowerCase() !== currentUserEmail
+            );
+        } else {
+            // Standalone Direct Login context: Query active accounts from DB
+            const dbUsers = await User.findAll({
+                attributes: ['id', 'name', 'email', 'role'],
+                order: [['name', 'ASC']]
+            });
+
+            moodleLecturers = dbUsers
+                .map(u => u.get({ plain: true }))
+                .filter(u => u.email && u.email.toLowerCase() !== currentUserEmail);
+        }
 
         let selectedSubject = null;
         if (subjectCode) {
@@ -145,11 +165,11 @@ router.get('/meetings/new', requireAuth, requireTeamsRole, async (req, res) => {
         res.render('meeting-form', {
             user: req.session.user,
             isAdmin: req.session.user.role === 'admin',
-            isMoodle: !!req.session.isMoodle, // Keeps sidebar hidden inside Moodle iframe
+            isMoodle: !!req.session.isMoodle,
             isEditMode: false,
             subject: selectedSubject,
             subjects: subjectsList.map(s => s.get({ plain: true })),
-            moodleLecturers,
+            moodleLecturers, // List of co-organizer options rendered in the form UI
             fixedEndDate,
             meeting: null,
             errorMessage: null
