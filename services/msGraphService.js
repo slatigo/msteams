@@ -65,6 +65,17 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
         coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
     }
 
+    // 🔒 Include Organizer in attendees list with explicit role: 'presenter'
+    const attendeesArray = [
+        {
+            identity: {
+                user: { id: organizerGuid }
+            },
+            upn: organizerEmail,
+            role: 'presenter'
+        }
+    ];
+
     const meetingPayload = {
         subject: subject,
         startDateTime: startDateTime,
@@ -73,9 +84,8 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
         lobbyBypassSettings: {
             scope: 'organization'
         },
-        // 🔒 Required by Graph API when allowedPresenters is 'roleIsPresenter'
         participants: {
-            attendees: [],
+            attendees: attendeesArray,
             coOrganizers: coOrganizersArray
         }
     };
@@ -118,14 +128,24 @@ async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, sta
         coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
     }
 
+    // 🔒 Include Organizer in attendees list with explicit role: 'presenter'
+    const attendeesArray = [
+        {
+            identity: {
+                user: { id: organizerGuid }
+            },
+            upn: organizerEmail,
+            role: 'presenter'
+        }
+    ];
+
     const patchPayload = {
         subject: subject,
         startDateTime: startDateTime,
         endDateTime: endDateTime,
         allowedPresenters: 'roleIsPresenter',
-        // 🔒 Required by Graph API when allowedPresenters is 'roleIsPresenter'
         participants: {
-            attendees: [],
+            attendees: attendeesArray,
             coOrganizers: coOrganizersArray
         }
     };
