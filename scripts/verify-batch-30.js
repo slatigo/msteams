@@ -38,24 +38,26 @@ async function verifyBatch30() {
             console.log(`[${i + 1}/30] Checking ID ${m.id}: "${m.subject}"`);
 
             try {
-                // 1. Resolve Organizer GUID
                 const userRes = await axios.get(
                     `https://graph.microsoft.com/v1.0/users/${m.creatorEmail}?$select=id`,
                     { headers }
                 );
                 const organizerGuid = userRes.data.id;
 
-                // 2. Fetch live meeting object from Graph API
                 const endpoint = `https://graph.microsoft.com/v1.0/users/${organizerGuid}/onlineMeetings/${m.teamsMeetingId}`;
                 const res = await axios.get(endpoint, { headers });
                 const liveMeeting = res.data;
 
+                // 📌 Check both attendees array and coOrganizers array
+                const attendees = liveMeeting.participants?.attendees || [];
                 const coOrgs = liveMeeting.participants?.coOrganizers || [];
+                const presenterUPNs = attendees.map(c => c.upn || c.identity?.user?.id);
                 const coOrgUPNs = coOrgs.map(c => c.upn || c.identity?.user?.id);
 
                 console.log(`   • Allowed Presenters: ${liveMeeting.allowedPresenters}`);
                 console.log(`   • Lobby Bypass Scope: ${liveMeeting.lobbyBypassSettings?.scope}`);
-                console.log(`   • Live Co-Organizers: ${coOrgs.length > 0 ? coOrgUPNs.join(', ') : 'None / Empty'}\n`);
+                console.log(`   • Presenters (Attendees): ${presenterUPNs.length > 0 ? presenterUPNs.join(', ') : 'None'}`);
+                console.log(`   • Co-Organizers: ${coOrgUPNs.length > 0 ? coOrgUPNs.join(', ') : 'None'}\n`);
 
             } catch (err) {
                 console.log(`   ❌ Could not verify meeting ID ${m.id}: ${err.response?.data?.error?.message || err.message}\n`);

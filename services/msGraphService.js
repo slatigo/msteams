@@ -38,37 +38,50 @@ async function getUserGuidByEmail(client, email) {
     }
 }
 
-async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
-    if (!Array.isArray(coOrganizers)) return { coOrganizersArray: [], attendeesArray: [] };
+async function resolveCoOrganizers(client, coOrganizers, organizerEmail, organizerGuid) {
+    let coOrganizersArray = [];
 
-    const filteredEmails = coOrganizers
-        .map(c => {
-            const rawEmail = typeof c === 'string' ? c : c?.email;
-            return rawEmail ? rawEmail.replace(/\s+/g, '').toLowerCase() : null;
-        })
-        .filter(email => email && email !== organizerEmail.toLowerCase());
+    if (Array.isArray(coOrganizers)) {
+        const filteredEmails = coOrganizers
+            .map(c => {
+                const rawEmail = typeof c === 'string' ? c : c?.email;
+                return rawEmail ? rawEmail.replace(/\s+/g, '').toLowerCase() : null;
+            })
+            .filter(email => email && email !== organizerEmail.toLowerCase());
 
-    const coOrgPromises = filteredEmails.map(async (email) => {
-        try {
-            const userGuid = await getUserGuidByEmail(client, email);
-            return {
-                identity: {
-                    user: { id: userGuid }
-                },
-                upn: email
-            };
-        } catch (err) {
-            console.warn(`Skipping co-organizer ${email}: ${err.message}`);
-            return null;
-        }
-    });
+        const coOrgPromises = filteredEmails.map(async (email) => {
+            try {
+                const userGuid = await getUserGuidByEmail(client, email);
+                return {
+                    identity: {
+                        user: { id: userGuid }
+                    },
+                    upn: email
+                };
+            } catch (err) {
+                console.warn(`Skipping co-organizer ${email}: ${err.message}`);
+                return null;
+            }
+        });
 
-    const coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
+        coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
+    }
 
-    const attendeesArray = coOrganizersArray.map(c => ({
+    let attendeesArray = coOrganizersArray.map(c => ({
         ...c,
         role: 'presenter'
     }));
+
+    // 🔒 Fallback: If no valid co-organizers exist, add organizer as presenter to satisfy Graph API requirements
+    if (attendeesArray.length === 0) {
+        attendeesArray = [
+            {
+                identity: { user: { id: organizerGuid } },
+                upn: organizerEmail,
+                role: 'presenter'
+            }
+        ];
+    }
 
     return { coOrganizersArray, attendeesArray };
 }
@@ -76,7 +89,7 @@ async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
 async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endDateTime, coOrganizers = [] }) {
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
+    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail, organizerGuid);
 
     const meetingPayload = {
         subject: subject,
@@ -106,7 +119,7 @@ async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, sta
     if (!teamsMeetingId) return;
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
+    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail, organizerGuid);
 
     const patchPayload = {
         subject: subject,
