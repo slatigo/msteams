@@ -38,14 +38,12 @@ async function getUserGuidByEmail(client, email) {
     }
 }
 
-// Utility to clean emails and filter co-organizers
 async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
     if (!Array.isArray(coOrganizers)) return [];
 
     const filteredEmails = coOrganizers
         .map(c => {
             const rawEmail = typeof c === 'string' ? c : c?.email;
-            // Sanitizes spaces (e.g. "gkituyi @mubs.ac.ug" -> "gkituyi@mubs.ac.ug")
             return rawEmail ? rawEmail.replace(/\s+/g, '').toLowerCase() : null;
         })
         .filter(email => email && email !== organizerEmail.toLowerCase());
@@ -57,8 +55,7 @@ async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
                 identity: {
                     user: { id: userGuid }
                 },
-                upn: email,
-                role: 'coOrganizer'
+                upn: email
             };
         } catch (err) {
             console.warn(`Skipping co-organizer ${email}: ${err.message}`);
@@ -72,16 +69,7 @@ async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
 async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endDateTime, coOrganizers = [] }) {
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-
     const coOrganizersArray = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
-
-    const attendeesArray = [
-        {
-            identity: { user: { id: organizerGuid } },
-            upn: organizerEmail,
-            role: 'presenter'
-        }
-    ];
 
     const meetingPayload = {
         subject: subject,
@@ -89,10 +77,9 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
         endDateTime: endDateTime,
         allowedPresenters: 'roleIsPresenter',
         lobbyBypassSettings: {
-            scope: 'organization' // Options: 'organization' (org users bypass) or 'everyone' (all bypass)
+            scope: 'organization'
         },
         participants: {
-            attendees: attendeesArray,
             coOrganizers: coOrganizersArray
         }
     };
@@ -111,28 +98,17 @@ async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, sta
     if (!teamsMeetingId) return;
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-
     const coOrganizersArray = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
-
-    const attendeesArray = [
-        {
-            identity: { user: { id: organizerGuid } },
-            upn: organizerEmail,
-            role: 'presenter'
-        }
-    ];
 
     const patchPayload = {
         subject: subject,
         startDateTime: startDateTime,
         endDateTime: endDateTime,
         allowedPresenters: 'roleIsPresenter',
-        // 🔓 Explicitly sets lobby settings on PATCH so students aren't blocked
         lobbyBypassSettings: {
-            scope: 'organization' // Change to 'everyone' if guests/external emails need auto-entry
+            scope: 'organization'
         },
         participants: {
-            attendees: attendeesArray,
             coOrganizers: coOrganizersArray
         }
     };
