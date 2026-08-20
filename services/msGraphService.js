@@ -3,7 +3,7 @@ const { Client } = require('@microsoft/microsoft-graph-client');
 require('isomorphic-fetch');
 const dns = require('dns');
 
-// Force IPv4 resolution to prevent Node.js v22 network fetch failures with Azure
+// Force IPv4 resolution to prevent Node.js network fetch failures with Azure
 dns.setDefaultResultOrder('ipv4first');
 
 const msalConfig = {
@@ -43,36 +43,34 @@ async function getUserGuidByEmail(client, email) {
 }
 
 /**
- * Creates an MS Teams Online Meeting with optional Co-Organizers
+ * Creates an MS Teams Online Meeting with Co-Organizers and secure permissions
  */
 async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endDateTime, coOrganizers = [] }) {
     const client = await getGraphClient();
-
-    // 1. Resolve Organizer UPN to Azure AD Object ID (GUID)
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
 
     const meetingPayload = {
         subject: subject,
         startDateTime: startDateTime,
         endDateTime: endDateTime,
-        allowedPresenters: 'everyone',
+        allowedPresenters: 'roleIsPresenter', // 🔒 Restricts Presenter role to Organizer + Co-Organizers
         lobbyBypassSettings: {
             scope: 'organization'
         }
     };
 
-    // 2. Resolve Co-Organizers to Azure AD Object IDs if present
     if (Array.isArray(coOrganizers) && coOrganizers.length > 0) {
-        const filteredEmails = coOrganizers.filter(email => email !== organizerEmail);
+        const filteredEmails = coOrganizers.filter(email => email.toLowerCase() !== organizerEmail.toLowerCase());
         
-        const attendeePromises = filteredEmails.map(async (email) => {
+        const coOrgPromises = filteredEmails.map(async (email) => {
             try {
                 const userGuid = await getUserGuidByEmail(client, email);
                 return {
                     identity: {
                         user: { id: userGuid }
                     },
-                    role: 'coorganizer'
+                    upn: email,
+                    role: 'coOrganizer'
                 };
             } catch (err) {
                 console.warn(`Skipping co-organizer ${email}: ${err.message}`);
@@ -80,14 +78,15 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
             }
         });
 
-        const attendees = (await Promise.all(attendeePromises)).filter(Boolean);
+        const coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
 
-        if (attendees.length > 0) {
-            meetingPayload.participants = { attendees };
+        if (coOrganizersArray.length > 0) {
+            meetingPayload.participants = {
+                coOrganizers: coOrganizersArray
+            };
         }
     }
 
-    // 3. Create meeting using the organizer GUID
     const result = await client
         .api(`/users/${organizerGuid}/onlineMeetings`)
         .post(meetingPayload);
@@ -99,13 +98,57 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
 }
 
 /**
+ * Updates an existing MS Teams Online Meeting
+ */
+async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, startDateTime, endDateTime, coOrganizers = [] }) {
+    if (!teamsMeetingId) return;
+    const client = await getGraphClient();
+    const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
+
+    const patchPayload = {
+        subject: subject,
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
+        allowedPresenters: 'roleIsPresenter'
+    };
+
+    if (Array.isArray(coOrganizers)) {
+        const filteredEmails = coOrganizers.filter(email => email.toLowerCase() !== organizerEmail.toLowerCase());
+        
+        const coOrgPromises = filteredEmails.map(async (email) => {
+            try {
+                const userGuid = await getUserGuidByEmail(client, email);
+                return {
+                    identity: {
+                        user: { id: userGuid }
+                    },
+                    upn: email,
+                    role: 'coOrganizer'
+                };
+            } catch (err) {
+                console.warn(`Skipping co-organizer ${email}: ${err.message}`);
+                return null;
+            }
+        });
+
+        const coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
+
+        patchPayload.participants = {
+            coOrganizers: coOrganizersArray
+        };
+    }
+
+    await client
+        .api(`/users/${organizerGuid}/onlineMeetings/${teamsMeetingId}`)
+        .patch(patchPayload);
+}
+
+/**
  * Deletes an MS Teams Online Meeting by ID
  */
 async function deleteTeamsMeeting({ organizerEmail, teamsMeetingId }) {
     if (!teamsMeetingId) return;
     const client = await getGraphClient();
-    
-    // Resolve Organizer UPN to Azure AD Object ID (GUID)
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
 
     await client
@@ -113,4 +156,4 @@ async function deleteTeamsMeeting({ organizerEmail, teamsMeetingId }) {
         .delete();
 }
 
-module.exports = { createTeamsMeeting, deleteTeamsMeeting };
+module.exports = { createTeamsMeeting, updateTeamsMeeting, deleteTeamsMeeting };
