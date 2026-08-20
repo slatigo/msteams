@@ -39,7 +39,7 @@ async function getUserGuidByEmail(client, email) {
 }
 
 async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
-    if (!Array.isArray(coOrganizers)) return [];
+    if (!Array.isArray(coOrganizers)) return { coOrganizersArray: [], attendeesArray: [] };
 
     const filteredEmails = coOrganizers
         .map(c => {
@@ -63,13 +63,20 @@ async function resolveCoOrganizers(client, coOrganizers, organizerEmail) {
         }
     });
 
-    return (await Promise.all(coOrgPromises)).filter(Boolean);
+    const coOrganizersArray = (await Promise.all(coOrgPromises)).filter(Boolean);
+
+    const attendeesArray = coOrganizersArray.map(c => ({
+        ...c,
+        role: 'presenter'
+    }));
+
+    return { coOrganizersArray, attendeesArray };
 }
 
 async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endDateTime, coOrganizers = [] }) {
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-    const coOrganizersArray = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
+    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
 
     const meetingPayload = {
         subject: subject,
@@ -80,7 +87,8 @@ async function createTeamsMeeting({ organizerEmail, subject, startDateTime, endD
             scope: 'organization'
         },
         participants: {
-            coOrganizers: coOrganizersArray
+            coOrganizers: coOrganizersArray,
+            attendees: attendeesArray
         }
     };
 
@@ -98,7 +106,7 @@ async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, sta
     if (!teamsMeetingId) return;
     const client = await getGraphClient();
     const organizerGuid = await getUserGuidByEmail(client, organizerEmail);
-    const coOrganizersArray = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
+    const { coOrganizersArray, attendeesArray } = await resolveCoOrganizers(client, coOrganizers, organizerEmail);
 
     const patchPayload = {
         subject: subject,
@@ -109,7 +117,8 @@ async function updateTeamsMeeting({ organizerEmail, teamsMeetingId, subject, sta
             scope: 'organization'
         },
         participants: {
-            coOrganizers: coOrganizersArray
+            coOrganizers: coOrganizersArray,
+            attendees: attendeesArray
         }
     };
 
